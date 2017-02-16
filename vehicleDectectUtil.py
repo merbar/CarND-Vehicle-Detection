@@ -28,7 +28,7 @@ def makeGrayImg(img, mask=None, colorspace='rgb', useChannel=0):
 
     # isolate channel
     if colorspace != 'gray':
-        cvt_img = img[:,:,useChannel]     
+        cvt_img = cvt_img[:,:,useChannel]     
 
     # apply image mask
     if mask is not None:
