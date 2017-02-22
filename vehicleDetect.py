@@ -99,12 +99,12 @@ def process_frame_efficient(img, debug=False):
     windows = []
     imgs = []
     method = sys.argv[1]
-    print(img_size)
+    imgCvt = vehicleUtil.convertClrSpace(img, clrspaceOrigin='RGB', colorspace='YCrCb')
     for scaleFac in imgScales:
         inverseFac = 1/scaleFac
         x_scaled = int(img.shape[1]*scaleFac)
         y_scaled = int(img.shape[0]*scaleFac)
-        img_scaled = cv2.resize(img, (x_scaled, y_scaled))
+        img_scaled = cv2.resize(imgCvt, (x_scaled, y_scaled))
         img_scaled_size = img_scaled.shape
         x_start_stop = [0, img_scaled_size[1]]
         y_start_stop = [int(img_scaled_size[0]/2), img_scaled_size[0]-int(70*scaleFac)]
@@ -116,49 +116,39 @@ def process_frame_efficient(img, debug=False):
         if debug:
             print('extracting windows at scale...')
         imgs.extend(vehicleUtil.get_window_imgs(img_scaled, windows_atScale, classifier_imgSize, resize=True))
-
-    if method == 'cnn':
-        if debug:
-            print('CNN: loading model...')
-        model = load_model('cnn.h5')
-        if debug:
-            print('CNN: predicting...')
-        pred = model.predict(imgs)
-        pred_bin = np.array([x[0] for x in pred])
-        pred_bin = np.where(pred_bin > 0.5, 1, 0)
-    if method == 'svm':
-        svc = joblib.load('svm.pkl')
-        X_scaler = joblib.load('svm_scaler.pkl')
-        #pca = joblib.load('svm_pca.pkl')
-        if debug:
-            print('SVM: extracting windows...')
-        '''
-        print('SVM: extracting HOG features...')
-        hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
-        hog_array = []
-        for channel in hogVar.hog_channel:
-            hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
-        '''
-        if debug:
-            print('SVM: extracting features/ predicting...')
-        features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace=hogVar.spatial_clr, spatial_size=(hogVar.spatial, hogVar.spatial),
-                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                hogFeat=hogVar.hogFeat, hog_cspace=hogVar.hog_clrspace, hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
-        X = np.vstack((features)).astype(np.float64)
-        scaled_X = X_scaler.transform(X)
-        #scaled_X = pca.transform(scaled_X)
-        pred_bin = svc.predict(scaled_X[:])
+    svc = joblib.load('svm.pkl')
+    X_scaler = joblib.load('svm_scaler.pkl')
+    #pca = joblib.load('svm_pca.pkl')
+    if debug:
+        print('SVM: extracting windows...')
+    '''
+    print('SVM: extracting HOG features...')
+    hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
+    hog_array = []
+    for channel in hogVar.hog_channel:
+        hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
+    '''
+    if debug:
+        print('SVM: extracting features/ predicting...')
+    # awkward: setting colorspace to BGR to circumvent cvtColor call
+    features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace='BGR', spatial_size=(hogVar.spatial, hogVar.spatial),
+                            hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
+                            hogFeat=hogVar.hogFeat, hog_cspace='BGR', hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
+    X = np.vstack((features)).astype(np.float64)
+    scaled_X = X_scaler.transform(X)
+    #scaled_X = pca.transform(scaled_X)
+    pred_bin = svc.predict(scaled_X[:])
     if debug:
         print('plotting hot windows...')
     ind = [x for x in range(len(pred_bin)) if pred_bin[x]==1]
     hot_windows = [windows[i] for i in ind]
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    #img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     window_img = vehicleUtil.draw_boxes(img, hot_windows, color=(0, 0, 255), thick=6) 
 
     # Add heat to each box in box list
     heat = vehicleUtil.add_heat(heat,hot_windows)
     # Apply threshold to help remove false positives
-    #heat = apply_threshold(heat,1)
+    #heat = vehicleUtil.apply_threshold(heat,1)
     # Visualize the heatmap when displaying    
     heatmap = np.clip(heat, 0, 255)
     labels = label(heatmap)
@@ -238,7 +228,7 @@ def process_frame_moreEfficient(img, debug=False):
 
 
 def process_vidFrame(img):
-    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     heatmap, labels, window_img = process_frame_efficient(img)
     #outImg = cv2.addWeighted(img, 1., heatmap, 0.3, 0.)
     #out_img = vehicleUtil.convertClrSpace(window_img, 'RGB')
@@ -249,9 +239,10 @@ def main():
     file = sys.argv[2]
     if file.endswith('.jpg'):
         img = cv2.imread(file)
+        img = vehicleUtil.convertClrSpace(img, colorspace='RGB')
         heatmap, labels, hotWindows_img = process_frame_efficient(img, debug=True)
         label_img = vehicleUtil.draw_labeled_bboxes(np.copy(img), labels)
-        label_img = vehicleUtil.convertClrSpace(label_img, colorspace='RGB')
+        #label_img = vehicleUtil.convertClrSpace(label_img, colorspace='RGB')
         fig = plt.figure()
         plt.subplot(131)
         plt.imshow(hotWindows_img)

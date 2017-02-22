@@ -7,7 +7,7 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2
 from keras.optimizers import SGD, Adam
 
 # Create thresholded binary image
-def makeGrayImg(img, mask=None, colorspace='RGB', useChannel=0):
+def makeGrayImg(img, mask=None, clrspaceOrigin='BGR', colorspace='RGB', useChannel=0):
     '''
     Returns a grey image based on the following inputs
     - mask
@@ -15,20 +15,37 @@ def makeGrayImg(img, mask=None, colorspace='RGB', useChannel=0):
     - choice of channel(s) to use
     '''
     # color space conversion
-    if colorspace != 'BGR':
-        if colorspace == 'HSV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        elif colorspace == 'LUV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
-        elif colorspace == 'HLS':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
-        elif colorspace == 'YUV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-        elif colorspace == 'RGB':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        elif colorspace == 'YCrCb':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-    else: cvt_img = np.copy(img)
+    if clrspaceOrigin == 'BGR':
+        if colorspace != 'BGR':
+            if colorspace == 'HSV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            elif colorspace == 'LUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+            elif colorspace == 'HLS':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+            elif colorspace == 'YUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+            elif colorspace == 'RGB':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            elif colorspace == 'YCrCb':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+        else: cvt_img = np.copy(img)
+    # it's RGB otherwise
+    else:
+        if colorspace != 'RGB':
+            if colorspace == 'HSV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            elif colorspace == 'LUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+            elif colorspace == 'HLS':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+            elif colorspace == 'YUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+            elif colorspace == 'BGR':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            elif colorspace == 'YCrCb':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2YCR_CB)
+        else: cvt_img = np.copy(img)
 
     # isolate channel
     if colorspace != 'GRAY':
@@ -45,22 +62,39 @@ def makeGrayImg(img, mask=None, colorspace='RGB', useChannel=0):
     return cvt_img
 
 
-def convertClrSpace(img, colorspace='RGB'):
+def convertClrSpace(img, clrspaceOrigin='BGR', colorspace='RGB'):
     # color space conversion
-    if colorspace != 'BGR':
-        if colorspace == 'HSV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        elif colorspace == 'LUV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
-        elif colorspace == 'HLS':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
-        elif colorspace == 'YUV':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-        elif colorspace == 'RGB':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        elif colorspace == 'YCrCb':
-            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-    else: cvt_img = np.copy(img)
+    if clrspaceOrigin == 'BGR':
+        if colorspace != 'BGR':
+            if colorspace == 'HSV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            elif colorspace == 'LUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+            elif colorspace == 'HLS':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+            elif colorspace == 'YUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+            elif colorspace == 'RGB':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            elif colorspace == 'YCrCb':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+        else: cvt_img = np.copy(img)
+    # it's RGB otherwise
+    else:
+        if colorspace != 'RGB':
+            if colorspace == 'HSV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            elif colorspace == 'LUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2LUV)
+            elif colorspace == 'HLS':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
+            elif colorspace == 'YUV':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2YUV)
+            elif colorspace == 'BGR':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            elif colorspace == 'YCrCb':
+                cvt_img = cv2.cvtColor(img, cv2.COLOR_RGB2YCR_CB)
+        else: cvt_img = np.copy(img)
     return cvt_img
 
 
@@ -132,7 +166,7 @@ def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_si
             image = cv2.imread(file)
         else:
             image = np.copy(file)
-        # apply color conversion if other than 'RGB'
+        # apply color conversion if other than 'BGR'
         if spatialFeat or histFeat:
             if cspace != 'BGR':
                 if cspace == 'HSV':
