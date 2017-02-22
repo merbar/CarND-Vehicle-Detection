@@ -26,6 +26,8 @@ def makeGrayImg(img, mask=None, colorspace='RGB', useChannel=0):
             cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
         elif colorspace == 'RGB':
             cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        elif colorspace == 'YCrCb':
+            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
     else: cvt_img = np.copy(img)
 
     # isolate channel
@@ -56,6 +58,8 @@ def convertClrSpace(img, colorspace='RGB'):
             cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
         elif colorspace == 'RGB':
             cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        elif colorspace == 'YCrCb':
+            cvt_img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
     else: cvt_img = np.copy(img)
     return cvt_img
 
@@ -114,9 +118,10 @@ def get_hog_features(img, orient, pix_per_cell, cell_per_block, vis=False, featu
 # Have this function call bin_spatial() and color_hist()
 def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_size=(32, 32),
                     hist_bins=32, hist_range=(0, 256), spatialFeat = True, histFeat = True,
-                    hogFeat=True, hog_cspace='RGB', hog_orient=9, hog_pix_per_cell=8, hog_cell_per_block=2, hog_channel=0):
+                    hogFeat=True, hog_cspace='RGB', hog_orient=9, hog_pix_per_cell=8, hog_cell_per_block=2, hog_channel=0, hogVec = True):
     # Create a list to append feature vectors to
     features = []
+    i = 0
     # Iterate through the list of images
     for file in imgs:
         spatial_features = []
@@ -140,6 +145,8 @@ def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_si
                     feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
                 elif cspace == 'RGB':
                     feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                elif cspace == 'YCrCb':
+                    feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCR_CB)
             else: feature_image = np.copy(image)
             if spatialFeat:
                 # get spatial color features
@@ -160,7 +167,7 @@ def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_si
                     elif hog_cspace == 'YUV':
                         feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YUV)
                     elif hog_cspace == 'YCrCb':
-                        feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCrCb)
+                        feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2YCR_CB)
                     elif hog_cspace == 'RGB':
                         feature_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 else: feature_image = np.copy(image)      
@@ -168,10 +175,11 @@ def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_si
                 # Call get_hog_features() with vis=False, feature_vec=True
                 for channel in hog_channel:
                     hog_features.append(get_hog_features(feature_image[:,:,channel], hog_orient, 
-                                                    hog_pix_per_cell, hog_cell_per_block, vis=False, feature_vec=True))
+                                                    hog_pix_per_cell, hog_cell_per_block, vis=False, feature_vec=hogVec))
                 hog_features = np.ravel(hog_features)
             else:
-                hog_features = np.ravel(hogArr)
+                hog_features = hogArr[i]
+            i+=1
         # Append the new feature vector to the features list
         features.append(np.concatenate((spatial_features, hist_features, hog_features)))
     # Return list of feature vectors
@@ -254,10 +262,13 @@ def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None],
     # Return the list of windows
     return window_list
 
-def get_window_imgs(img, windows, outSize):
+def get_window_imgs(img, windows, outSize, resize=True):
     imgs = []
     for window in windows:
-        imgs.append(cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64)))
+        if resize:
+            imgs.append(cv2.resize(img[window[0][1]:window[1][1], window[0][0]:window[1][0]], (64, 64)))
+        else:
+            imgs.append(img[window[0][1]:window[1][1], window[0][0]:window[1][0]])
     imgs = np.array(imgs)
     return imgs
 

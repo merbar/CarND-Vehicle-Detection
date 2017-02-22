@@ -1,6 +1,7 @@
 data/
 *.mp4
 *.pkl
+weights/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
