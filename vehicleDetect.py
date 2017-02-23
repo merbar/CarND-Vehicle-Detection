@@ -14,18 +14,20 @@ from sklearn.externals import joblib
 from sklearn.preprocessing import StandardScaler
 from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip, ImageSequenceClip
+import YOLO_tiny_tf
 import vehicleDetectUtil as vehicleUtil
 
 
 # GLOBALS
 # SVM
 import vehicleDetect_hogVar as hogVar
+method = 'svm'
 
 # sliding windows
 #windowSizes = [96, 128, 145]
 windowSizes = [96, 145]
+windowSizes_cnn = [100, 250, 400]
 #imgScales = [0.65, 0.45]
-imgScales_initDetect = [0.5]
 imgScales = [0.8, 0.65, 0.45]
 windowOverlap = 0.7
 # classifier
@@ -34,6 +36,16 @@ classifier_imgSize = 64
 heatmap_arr = []
 heatmap_filterSize = 8
 outputDebug = True
+
+yolo = YOLO_tiny_tf.YOLO_TF()
+
+yolo.disp_console = False
+yolo.imshow = False
+yolo.returnImg = True
+#yolo.tofile_img = (output image filename)
+#yolo.tofile_txt = (output txt filename)
+yolo.filewrite_img = False
+yolo.filewrite_txt = False
 
 
 def process_frame(img, debug=False):
@@ -94,6 +106,16 @@ def process_frame(img, debug=False):
     labels = label(heatmap)
     return heatmap, labels, window_img
 
+def process_frame_cnn(img):
+    global yolo
+    img_size = img.shape
+    x_start_stop = [0, img_size[1]]
+    y_start_stop = [img_size[1]//2, img_size[1]-40]
+    windows = vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=windowSizes_cnn, xy_overlap=(windowOverlap, windowOverlap))
+    imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize, resize=False)
+    #crop = img[0:img_size[0], img_size[1]-img_size[0]:img_size[1]]
+    return yolo.detect_from_cvmat(imgs)
+
 def process_frame_efficient(img, debug=False):
     # sliding windows creation
     global windowSizes
@@ -103,52 +125,55 @@ def process_frame_efficient(img, debug=False):
     img_size = img.shape
     windows = []
     imgs = []
-    method = sys.argv[1]
-    imgCvt = vehicleUtil.convertClrSpace(img, clrspaceOrigin='RGB', colorspace='YCrCb')
-    for scaleFac in imgScales:
-        inverseFac = 1/scaleFac
-        x_scaled = int(img.shape[1]*scaleFac)
-        y_scaled = int(img.shape[0]*scaleFac)
-        img_scaled = cv2.resize(imgCvt, (x_scaled, y_scaled))
-        img_scaled_size = img_scaled.shape
-        x_start_stop = [int(img_scaled_size[1]/2), img_scaled_size[1]]
-        #x_start_stop = [0, img_scaled_size[1]]
-        y_start = int(img_scaled_size[0]/2)
-        y_stop = (img_scaled_size[0]-int(70*scaleFac))
-        y_size = y_stop - y_start
-        y_stop = y_start + y_size * min(1.3-scaleFac, 1.)
+    if method == 'svm':
+        imgCvt = vehicleUtil.convertClrSpace(img, clrspaceOrigin='RGB', colorspace='YCrCb')
+        for scaleFac in imgScales:
+            inverseFac = 1/scaleFac
+            x_scaled = int(img.shape[1]*scaleFac)
+            y_scaled = int(img.shape[0]*scaleFac)
+            img_scaled = cv2.resize(imgCvt, (x_scaled, y_scaled))
+            img_scaled_size = img_scaled.shape
+            x_start_stop = [int(img_scaled_size[1]/2), img_scaled_size[1]]
+            #x_start_stop = [0, img_scaled_size[1]]
+            y_start = int(img_scaled_size[0]/2)
+            y_stop = (img_scaled_size[0]-int(70*scaleFac))
+            y_size = y_stop - y_start
+            y_stop = y_start + y_size * min(1.3-scaleFac, 1.)
 
-        y_start_stop = [y_start, y_stop]
-        
-        windows_atScale = vehicleUtil.slide_window(img_scaled, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=windowSizes, xy_overlap=(windowOverlap, windowOverlap))
-        # save bounding box in original image space
-        for each in windows_atScale:
-            windows.append(((int(each[0][0]*inverseFac), int(each[0][1]*inverseFac)), (int(each[1][0]*inverseFac), int(each[1][1]*inverseFac))))
+            y_start_stop = [y_start, y_stop]
+            
+            windows_atScale = vehicleUtil.slide_window(img_scaled, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=windowSizes, xy_overlap=(windowOverlap, windowOverlap))
+            # save bounding box in original image space
+            for each in windows_atScale:
+                windows.append(((int(each[0][0]*inverseFac), int(each[0][1]*inverseFac)), (int(each[1][0]*inverseFac), int(each[1][1]*inverseFac))))
+            if debug:
+                print('extracting windows at scale...')
+            imgs.extend(vehicleUtil.get_window_imgs(img_scaled, windows_atScale, classifier_imgSize, resize=True))
+        svc = joblib.load('svm.pkl')
+        X_scaler = joblib.load('svm_scaler.pkl')
+        #pca = joblib.load('svm_pca.pkl')
         if debug:
-            print('extracting windows at scale...')
-        imgs.extend(vehicleUtil.get_window_imgs(img_scaled, windows_atScale, classifier_imgSize, resize=True))
-    svc = joblib.load('svm.pkl')
-    X_scaler = joblib.load('svm_scaler.pkl')
-    #pca = joblib.load('svm_pca.pkl')
-    if debug:
-        print('SVM: extracting windows...')
-    '''
-    print('SVM: extracting HOG features...')
-    hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
-    hog_array = []
-    for channel in hogVar.hog_channel:
-        hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
-    '''
-    if debug:
-        print('SVM: extracting features/ predicting...')
-    # awkward: setting colorspace to BGR to circumvent cvtColor call
-    features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace='BGR', spatial_size=(hogVar.spatial, hogVar.spatial),
-                            hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                            hogFeat=hogVar.hogFeat, hog_cspace='BGR', hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
-    X = np.vstack((features)).astype(np.float64)
-    scaled_X = X_scaler.transform(X)
-    #scaled_X = pca.transform(scaled_X)
-    pred_bin = svc.predict(scaled_X[:])
+            print('SVM: extracting windows...')
+        '''
+        print('SVM: extracting HOG features...')
+        hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
+        hog_array = []
+        for channel in hogVar.hog_channel:
+            hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
+        '''
+        if debug:
+            print('SVM: extracting features/ predicting...')
+        # awkward: setting colorspace to BGR to circumvent cvtColor call
+        features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace='BGR', spatial_size=(hogVar.spatial, hogVar.spatial),
+                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
+                                hogFeat=hogVar.hogFeat, hog_cspace='BGR', hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
+        X = np.vstack((features)).astype(np.float64)
+        scaled_X = X_scaler.transform(X)
+        #scaled_X = pca.transform(scaled_X)
+        pred_bin = svc.predict(scaled_X[:])
+    elif method == 'cnn':
+        pred_bin = np.zeros(len(scaled_X))
+        #pred_bin = process_frame_cnn(img)
     if debug:
         print('plotting hot windows...')
     ind = [x for x in range(len(pred_bin)) if pred_bin[x]==1]
@@ -270,6 +295,8 @@ def process_vidFrame(img):
 
 
 def main():
+    global method
+    method = sys.argv[1]
     file = sys.argv[2]
     if file.endswith('.jpg'):
         img = cv2.imread(file)
@@ -290,9 +317,12 @@ def main():
         fig.tight_layout()
         plt.show()
     else:
+        # through low contrast and some shadows
         #clip = VideoFileClip(file).subclip('00:00:21.00','00:00:24.00')
+        # tree noise on right
+        clip = VideoFileClip(file).subclip('00:00:13.00','00:00:16.00')
         clip = VideoFileClip(file)
-        proc_clip = clip.fl_image(process_vidFrame)
+        #proc_clip = clip.fl_image(process_vidFrame)
         proc_output = '{}_proc.mp4'.format(file.split('.')[0])
         proc_clip.write_videofile(proc_output, audio=False)
     
