@@ -28,12 +28,13 @@ svm_dataset_size = 0
 import vehicleDetect_hogVar as hogVar
 
 # CNN
-EPOCHS = 20
-BATCHSIZE = 200
+EPOCHS = 1000
+BATCHSIZE = 100
 
 def generateBatchRandom(X, y, img_x, img_y):
     batchImg = np.zeros((BATCHSIZE, img_y, img_x, 3))
     batchY = np.zeros(BATCHSIZE)
+    maxRandT = 20
     while 1:
         for i in range(BATCHSIZE):
             i_data = np.random.randint(len(X))
@@ -43,9 +44,15 @@ def generateBatchRandom(X, y, img_x, img_y):
             randBright = min(0.25+np.random.uniform(), 1.2)
             hsv[:,:,2] = hsv[:,:,2] * randBright
             img = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
-            # FLIP
+            # RANDOM FLIP
             if (np.random.uniform() > 0.5):
                 img = np.fliplr(img)
+            # RANDOM TRANSLATE
+            tx = random.randint(-maxRandT, maxRandT)
+            ty = random.randint(-maxRandT, maxRandT)
+            M = np.float32([[1,0,tx],[0,1,ty]])
+            img = cv2.warpAffine(img,M,(64,64))
+            # DONE
             batchImg[i] = np.copy(img)
             batchY[i] = y[i_data]
         yield batchImg, batchY
