@@ -15,20 +15,21 @@ from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
 from sklearn import decomposition
 from keras import backend as K
+from keras import callbacks
 from keras.regularizers import l2, activity_l2
 import vehicleDetectUtil as vehicleUtil
 
 
 # GLOBAL
-svm = True
-cnn = False
+svm = False
+cnn = True
 # SVM
 svm_dataset_size = 0
 import vehicleDetect_hogVar as hogVar
 
 # CNN
-EPOCHS = 50
-BATCHSIZE = 50
+EPOCHS = 20
+BATCHSIZE = 200
 
 def generateBatchRandom(X, y, img_x, img_y):
     batchImg = np.zeros((BATCHSIZE, img_y, img_x, 3))
@@ -36,16 +37,27 @@ def generateBatchRandom(X, y, img_x, img_y):
     while 1:
         for i in range(BATCHSIZE):
             i_data = np.random.randint(len(X))
-            batchImg[i] = cv2.imread(X[i_data])
-            #img = Image.open(X[i_data])
-            #batchImg[i] = preprocessImg(img, flip=trainData[i_data]['flip'], addShdw=True, randBright=True)
+            img = cv2.imread(X[i_data])
+            # RANDOMIZE BRIGHTNESS
+            hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            randBright = min(0.25+np.random.uniform(), 1.2)
+            hsv[:,:,2] = hsv[:,:,2] * randBright
+            img = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+            # FLIP
+            if (np.random.uniform() > 0.5):
+                img = np.fliplr(img)
+            batchImg[i] = np.copy(img)
             batchY[i] = y[i_data]
         yield batchImg, batchY
 
 
 def main():
-    vehicleFolder = 'data/vehicles'
-    nonVehicleFolder = 'data/non-vehicles'
+    if svm:
+        vehicleFolder = 'data/vehicles'
+        nonVehicleFolder = 'data/non-vehicles'
+    else:
+        vehicleFolder = 'data/vehicles_cnn'
+        nonVehicleFolder = 'data/non-vehicles_cnn'
     file_types = ('jpg', 'png')
     # read in datasets
     files_vehicle = []
@@ -184,17 +196,20 @@ def main():
     if cnn:
         X = np.concatenate((files_vehicle, files_nonVehicle))
         y = np.concatenate((np.ones(len(files_vehicle)), np.zeros(len(files_nonVehicle))))
+        '''
         print('CNN: loading images into memory...')
         X_imgs = []
         for each in X:
             X_imgs.append(cv2.imread(each)) 
         X_imgs = np.array(X_imgs)
+        '''
         print("CNN: building model...")
         model = vehicleUtil.cnn_model(3, img.shape[0], img.shape[1])
         print("CNN: starting training...")
-        #generator = generateBatchRandom(X, y, img.shape[1], img.shape[0])
-        #model.fit_generator(generator, samples_per_epoch=20000, nb_epoch=EPOCHS)
-        model.fit(X_imgs, y, nb_epoch=EPOCHS,  batch_size=BATCHSIZE, shuffle=True, validation_split=0.15)
+        generator = generateBatchRandom(X, y, img.shape[1], img.shape[0])
+        cbks = [callbacks.TensorBoard(log_dir='tb_log/')]
+        model.fit_generator(generator, callbacks=cbks, samples_per_epoch=20000, nb_epoch=EPOCHS)
+        #model.fit(X_imgs, y, nb_epoch=EPOCHS,  batch_size=BATCHSIZE, shuffle=True, validation_split=0.15)
         print("CNN: saving model...")
         modelName = 'cnn'
         fileName = '%s' % (modelName)
@@ -208,6 +223,7 @@ def main():
 
 
         ################ DEBUG ################
+        '''
         car_test = []
         nonCar_test = []
         for each in files_test_vehicle:
@@ -222,6 +238,7 @@ def main():
         pred_bin = np.where(pred_bin > 0.5, 1, 0)
         print('This CNN predicts: ', pred_bin[:])
         print('For these labels:  ', y.astype(int)[:])
+        '''
         K.clear_session() #otherwise it often errors out here. Some python/keras garbage collection issue.
 
 if __name__ == '__main__':

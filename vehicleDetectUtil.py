@@ -1,12 +1,12 @@
 import numpy as np
 import cv2
 from skimage.feature import hog
-'''
+
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Flatten, Lambda, ELU
+from keras.layers import Dense, Dropout, Flatten, Lambda, ELU, Activation
 from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2D
 from keras.optimizers import SGD, Adam
-'''
+
 
 # Create thresholded binary image
 def makeGrayImg(img, mask=None, clrspaceOrigin='BGR', colorspace='RGB', useChannel=0):
@@ -222,38 +222,33 @@ def extract_features(imgs, readImg = True, hogArr=None, cspace='RGB', spatial_si
     return features
 
 def cnn_model(ch, row, col):
-    #ch, row, col = 3, 160, 320  # original model format
     model = Sequential()
     model.add(Lambda(lambda x: x/127.5 - 1.,
               input_shape=(row, col, ch),
               output_shape=(row, col, ch)))
-    model.add(Convolution2D(32, 3, 3, subsample=(1, 1), border_mode="same", W_regularizer=l2(0.01)))
-    model.add(ELU())
-    model.add(Convolution2D(64, 3, 3, subsample=(1, 1), border_mode="same", W_regularizer=l2(0.01)))
-    model.add(ELU())
-    model.add(Dropout(.25))
-    model.add(Convolution2D(128, 3, 3, subsample=(1, 1), border_mode="same", W_regularizer=l2(0.01)))
-    model.add(ELU())
+    model.add(Convolution2D(32, 3, 3, border_mode='same'))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(32, 3, 3))
+    model.add(Activation('relu'))
     model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Dropout(.25))
+    model.add(Dropout(0.25))
+
+    model.add(Convolution2D(64, 3, 3, border_mode='same'))
+    model.add(Activation('relu'))
+    model.add(Convolution2D(64, 3, 3))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.25))
 
     model.add(Flatten())
-
-    model.add(Dense(1024, W_regularizer=l2(0.01)))
-    #model.add(Dense(1024))
-    #model.add(BatchNormalization())
-    model.add(ELU())
-    model.add(Dropout(.3))
-    model.add(Dense(512, W_regularizer=l2(0.01)))
-    model.add(ELU())
-    model.add(Dropout(.2))
-    model.add(Dense(256, W_regularizer=l2(0.01)))
-    model.add(ELU())
-    model.add(Dropout(.2))
-    model.add(Dense(1, activation='sigmoid'))
-    adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    model.add(Dense(512))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    #adam = Adam(lr=0.0001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     #model.compile(optimizer="adam", loss="mse") #binary_crossentropy
-    model.compile(optimizer=adam, loss="binary_crossentropy",  metrics=['accuracy'])
+    model.compile(optimizer='adam', loss="binary_crossentropy",  metrics=['accuracy'])
     return model
 
 
@@ -279,8 +274,8 @@ def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None],
         nx_pix_per_step = np.int(xy_window[0]*(1 - xy_overlap[0]))
         ny_pix_per_step = np.int(xy_window[1]*(1 - xy_overlap[1]))
         # Compute the number of windows in x/y
-        nx_windows = np.int(xspan/nx_pix_per_step) -1
-        ny_windows = np.int(yspan/ny_pix_per_step) -1
+        nx_windows = np.int(xspan/nx_pix_per_step)
+        ny_windows = np.int(yspan/ny_pix_per_step) 
         # Loop through finding x and y window positions
         # Note: you could vectorize this step, but in practice
         # you'll be considering windows one by one with your
@@ -294,7 +289,7 @@ def slide_window(img, x_start_stop=[None, None], y_start_stop=[None, None],
                 endy = starty + xy_window[1]
 
                 # Append window position to list
-                window_list.append(((startx, starty), (endx, endy)))
+                window_list.append(((int(startx), int(starty)), (int(endx), int(endy))))
     # Return the list of windows
     return window_list
 
