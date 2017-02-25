@@ -25,10 +25,10 @@ svm = False
 cnn = True
 # SVM
 svm_dataset_size = 0
-import vehicleDetect_hogVar as hogVar
+import vehicleDetect_svmVar as svmVar
 
 # CNN
-EPOCHS = 1000
+EPOCHS = 500
 BATCHSIZE = 100
 
 def generateBatchRandom(X, y, img_x, img_y):
@@ -99,12 +99,12 @@ def main():
             files_nonVehicle_svm = files_nonVehicle
         print('SVM: using {} car and {} non-car images'.format(len(files_vehicle_svm), len(files_nonVehicle_svm)))
         print('SVM: preparing features...')
-        car_features = vehicleUtil.extract_features(files_vehicle_svm, cspace=hogVar.spatial_clr, spatial_size=(hogVar.spatial, hogVar.spatial),
-                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                hogFeat=hogVar.hogFeat, hog_cspace=hogVar.hog_clrspace, hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
-        notcar_features = vehicleUtil.extract_features(files_nonVehicle_svm, cspace=hogVar.spatial_clr, spatial_size=(hogVar.spatial, hogVar.spatial),
-                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                hogFeat=hogVar.hogFeat, hog_cspace=hogVar.hog_clrspace, hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
+        car_features = vehicleUtil.extract_features(files_vehicle_svm, cspace=svmVar.spatial_clr, spatial_size=(svmVar.spatial, svmVar.spatial),
+                                hist_bins=svmVar.histbin, hist_range=(0, 256), spatialFeat = svmVar.spatialFeat, histFeat = svmVar.histFeat,
+                                hogFeat=svmVar.hogFeat, hog_cspace=svmVar.hog_clrspace, hog_orient=svmVar.orient, hog_pix_per_cell=svmVar.pix_per_cell, hog_cell_per_block=svmVar.cell_per_block, hog_channel=svmVar.hog_channel)
+        notcar_features = vehicleUtil.extract_features(files_nonVehicle_svm, cspace=svmVar.spatial_clr, spatial_size=(svmVar.spatial, svmVar.spatial),
+                                hist_bins=svmVar.histbin, hist_range=(0, 256), spatialFeat = svmVar.spatialFeat, histFeat = svmVar.histFeat,
+                                hogFeat=svmVar.hogFeat, hog_cspace=svmVar.hog_clrspace, hog_orient=svmVar.orient, hog_pix_per_cell=svmVar.pix_per_cell, hog_cell_per_block=svmVar.cell_per_block, hog_channel=svmVar.hog_channel)
         # Create an array stack of feature vectors
         X = np.vstack((car_features, notcar_features)).astype(np.float64)
         # Fit a per-column scaler
@@ -163,9 +163,9 @@ def main():
             heat = np.zeros_like(img[:,:,0]).astype(np.float)
             print('SVM: extracting windows...')
             imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize)
-            features = vehicleUtil.extract_features(imgs, readImg=False, cspace=hogVar.spatial_clr, spatial_size=(hogVar.spatial, hogVar.spatial),
-                                    hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                    hogFeat=hogVar.hogFeat, hog_cspace=hogVar.hog_clrspace, hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
+            features = vehicleUtil.extract_features(imgs, readImg=False, cspace=svmVar.spatial_clr, spatial_size=(svmVar.spatial, svmVar.spatial),
+                                    hist_bins=svmVar.histbin, hist_range=(0, 256), spatialFeat = svmVar.spatialFeat, histFeat = svmVar.histFeat,
+                                    hogFeat=svmVar.hogFeat, hog_cspace=svmVar.hog_clrspace, hog_orient=svmVar.orient, hog_pix_per_cell=svmVar.pix_per_cell, hog_cell_per_block=svmVar.cell_per_block, hog_channel=svmVar.hog_channel)
             X = np.vstack((features)).astype(np.float64)
             scaled_X = X_scaler.transform(X)
             #scaled_X = pca.transform(scaled_X)

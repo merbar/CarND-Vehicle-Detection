@@ -9,26 +9,30 @@ from skimage.feature import hog
 import csv
 import sys
 import pickle
-from keras.models import load_model
 from sklearn.externals import joblib
 from sklearn.preprocessing import StandardScaler
 from scipy.ndimage.measurements import label
 from moviepy.editor import VideoFileClip, ImageSequenceClip
 import vehicleDetectUtil as vehicleUtil
+import vehicleDetect_svmVar as svmVar
 
 
 # GLOBALS
-# SVM
-import vehicleDetect_hogVar as hogVar
-method = 'svm'
+cnn_model = 'cnn_100e.h5'
 
 # sliding windows
 #windowSizes = [96, 128, 145]
 windowSizes = [96, 145]
-windowSizes_cnn = [64, 96, 145]
+#windowSizes_cnn = [64, 96, 120]
+windowSizes_cnn = [64, 96, 120]
 #imgScales = [0.65, 0.45]
 imgScales = [1., 0.8, 0.65, 0.45]
-windowOverlap = 0.75
+windowOverlap = 0.8
+windowOverlap_cnn = 0.65
+heatThreshPerFrame_cnn = 1
+heatThresh_cnn = 4
+heatThreshPerFrame_svm = 1
+heatThresh_svm= 4
 # classifier
 classifier_imgSize = 64
 
@@ -36,76 +40,7 @@ heatmap_arr = []
 heatmap_filterSize = 8
 outputDebug = True
 writeGridsImgs = False
-
-def process_frame(img, debug=False):
-    # sliding windows creation
-    heat = np.zeros_like(img[:,:,0]).astype(np.float)
-    img_size = img.shape
-    x_start_stop = [0, img_size[1]]
-    y_start_stop = [int(img_size[0]/2), img_size[0]-70]
-    windows = vehicleUtil.slide_window(img, x_start_stop=[None, None], y_start_stop=y_start_stop, windowSizeAr=windowSizes, xy_overlap=(windowOverlap, windowOverlap))
-    method = sys.argv[1]
-    if method == 'cnn':
-        if debug:
-            print('CNN: loading model...')
-        model = load_model('cnn.h5')
-        if debug:
-            print('CNN: extracting windows...')
-        imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize)
-        if debug:
-            print('CNN: predicting...')
-        pred = model.predict(imgs)
-        pred_bin = np.array([x[0] for x in pred])
-        pred_bin = np.where(pred_bin > 0.5, 1, 0)
-    if method == 'svm':
-        svc = joblib.load('svm.pkl')
-        X_scaler = joblib.load('svm_scaler.pkl')
-        #pca = joblib.load('svm_pca.pkl')
-        if debug:
-            print('SVM: extracting windows...')
-        imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize)
-        '''
-        print('SVM: extracting HOG features...')
-        hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
-        hog_array = []
-        for channel in hogVar.hog_channel:
-            hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
-        '''
-        if debug:
-            print('SVM: extracting features/ predicting...')
-        features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace=hogVar.spatial_clr, spatial_size=(hogVar.spatial, hogVar.spatial),
-                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                hogFeat=hogVar.hogFeat, hog_cspace=hogVar.hog_clrspace, hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
-        X = np.vstack((features)).astype(np.float64)
-        scaled_X = X_scaler.transform(X)
-        #scaled_X = pca.transform(scaled_X)
-        pred_bin = svc.predict(scaled_X[:])
-    if debug:
-        print('plotting hot windows...')
-    ind = [x for x in range(len(pred_bin)) if pred_bin[x]==1]
-    hot_windows = [windows[i] for i in ind]
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    window_img = vehicleUtil.draw_boxes(img, hot_windows, color=(0, 0, 255), thick=6) 
-    # Add heat to each box in box list
-    heat = vehicleUtil.add_heat(heat,hot_windows)
-    # Apply threshold to help remove false positives
-    #heat = apply_threshold(heat,1)
-    # Visualize the heatmap when displaying    
-    heatmap = np.clip(heat, 0, 255)
-    labels = label(heatmap)
-    return heatmap, labels, window_img
-
-'''
-def process_frame_cnn(img):
-    #global yolo
-    img_size = img.shape
-    x_start_stop = [0, img_size[1]]
-    y_start_stop = [img_size[1]//2, img_size[1]-40]
-    windows = vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=windowSizes_cnn, xy_overlap=(windowOverlap, windowOverlap))
-    imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize, resize=False)
-    #crop = img[0:img_size[0], img_size[1]-img_size[0]:img_size[1]]
-    return yolo.detect_from_cvmat(imgs)
-'''
+rawOutput = False
 
 def process_frame_efficient(img, debug=False):
     # sliding windows creation
@@ -163,17 +98,17 @@ def process_frame_efficient(img, debug=False):
             print('SVM: extracting windows...')
         '''
         print('SVM: extracting HOG features...')
-        hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=hogVar.spatial_clr)
+        hogImg = vehicleDetectUtil.convertClrSpace(img, colorspace=svmVar.spatial_clr)
         hog_array = []
-        for channel in hogVar.hog_channel:
-            hog_array.append(hog(hogImg[:,:,channel], orientations=hogVar.orient, pixels_per_cell=(hogVar.pix_per_cell, hogVar.pix_per_cell), cells_per_block=(hogVar.cell_per_block, hogVar.cell_per_block), visualise=False, feature_vector=False))           
+        for channel in svmVar.hog_channel:
+            hog_array.append(hog(hogImg[:,:,channel], orientations=svmVar.orient, pixels_per_cell=(svmVar.pix_per_cell, svmVar.pix_per_cell), cells_per_block=(svmVar.cell_per_block, svmVar.cell_per_block), visualise=False, feature_vector=False))           
         '''
         if debug:
             print('SVM: extracting features/ predicting...')
         # awkward: setting colorspace to BGR to circumvent cvtColor call
-        features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace='BGR', spatial_size=(hogVar.spatial, hogVar.spatial),
-                                hist_bins=hogVar.histbin, hist_range=(0, 256), spatialFeat = hogVar.spatialFeat, histFeat = hogVar.histFeat,
-                                hogFeat=hogVar.hogFeat, hog_cspace='BGR', hog_orient=hogVar.orient, hog_pix_per_cell=hogVar.pix_per_cell, hog_cell_per_block=hogVar.cell_per_block, hog_channel=hogVar.hog_channel)
+        features = vehicleUtil.extract_features(imgs, hogArr=None, readImg=False, cspace='BGR', spatial_size=(svmVar.spatial, svmVar.spatial),
+                                hist_bins=svmVar.histbin, hist_range=(0, 256), spatialFeat = svmVar.spatialFeat, histFeat = svmVar.histFeat,
+                                hogFeat=svmVar.hogFeat, hog_cspace='BGR', hog_orient=svmVar.orient, hog_pix_per_cell=svmVar.pix_per_cell, hog_cell_per_block=svmVar.cell_per_block, hog_channel=svmVar.hog_channel)
         X = np.vstack((features)).astype(np.float64)
         scaled_X = X_scaler.transform(X)
         #scaled_X = pca.transform(scaled_X)
@@ -183,9 +118,18 @@ def process_frame_efficient(img, debug=False):
         #print(max(pred))
         #pred_bin[pred > 1.] = 1
     elif method == 'cnn':
-        x_start_stop = [img_size[1]/2, img_size[1]]
-        y_start_stop = [img_size[0]/2+30, img_size[0]-70]
-        windows = vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=windowSizes_cnn, xy_overlap=(windowOverlap, windowOverlap))
+        windows = []
+        x_start_stop = [640, 1090]
+        ystart = 360+53
+        ystop = ystart+60
+        y_start_stop = [ystart, ystop]
+        windows.extend(vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=[windowSizes_cnn[0]], xy_overlap=(windowOverlap_cnn, windowOverlap_cnn)))
+        x_start_stop = [640, img_size[1]]
+        y_start_stop = [360+50, 720-220] # 200 was good enough
+        windows.extend(vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=[windowSizes_cnn[1]], xy_overlap=(windowOverlap_cnn, windowOverlap_cnn)))
+        x_start_stop = [640, img_size[1]]
+        y_start_stop = [500, 720-70]
+        windows.extend(vehicleUtil.slide_window(img, x_start_stop=x_start_stop, y_start_stop=y_start_stop, windowSizeAr=[windowSizes_cnn[2]], xy_overlap=(windowOverlap_cnn, windowOverlap_cnn)))
         imgs = vehicleUtil.get_window_imgs(img, windows, classifier_imgSize)
         pred = model.predict(imgs)
         pred_bin = np.array([x[0] for x in pred])
@@ -200,22 +144,23 @@ def process_frame_efficient(img, debug=False):
     # Add heat to each box in box list
     heat = vehicleUtil.add_heat(heat,hot_windows)
     # Apply threshold to help remove false positives for current frame
-    #heat = vehicleUtil.apply_threshold(heat,1)
+    heat = vehicleUtil.apply_threshold(heat,1)
     heatmap_arr.append(heat)
     if len(heatmap_arr) > heatmap_filterSize:
         heatmap_arr = heatmap_arr[1:]
     heat_combined = np.zeros_like(img[:,:,0]).astype(np.float)
     for i in range(len(heatmap_arr)):
         heat_combined = heat_combined + heatmap_arr[i]
-    heat_combined = vehicleUtil.apply_threshold(heat_combined,3)
+    heat_combined = vehicleUtil.apply_threshold(heat_combined,4)
     # Visualize the heatmap when displaying    
     heatmap = np.clip(heat_combined, 0, 255)
     labels = label(heatmap)
     return heatmap, labels, hot_windows
 
 
-
 def process_vidFrame(img):
+    global frame_i
+    frame_i += 1
     #img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
     heatmap, labels, hot_windows = process_frame_efficient(img)
     label_img = vehicleUtil.draw_labeled_bboxes(np.copy(img), labels)
@@ -241,27 +186,22 @@ def process_vidFrame(img):
     else:
         window_img = vehicleUtil.draw_boxes(img, hot_windows, color=(0, 0, 255), thick=6)
         out_img = vehicleUtil.convertClrSpace(window_img, 'RGB')
+    if rawOutput:
+        blankImg = cv2.zeros_like(img)
+        cv2.imwrite('rawOut/img_{0:0>4}.jpg'.format(frame_i), vehicleUtil.draw_boxes(img, hot_windows, color=(0, 0, 255), thick=6))
     return out_img
 
 
 def main():
     global method
     global model
+    global frame_i
+    frame_i = 0
     method = sys.argv[1]
     if method == 'cnn':
-        model = load_model('cnn.h5')
-        '''
-        import YOLO_tiny_tf
-        global yolo
-        yolo = YOLO_tiny_tf.YOLO_TF()
-        yolo.disp_console = False
-        yolo.imshow = False
-        yolo.returnImg = True
-        #yolo.tofile_img = (output image filename)
-        #yolo.tofile_txt = (output txt filename)
-        yolo.filewrite_img = False
-        yolo.filewrite_txt = False
-        '''
+        from keras.models import load_model
+        from keras import backend as K
+        model = load_model(cnn_model)
     file = sys.argv[2]
     if file.endswith('.jpg'):
         img = cv2.imread(file)
@@ -284,10 +224,10 @@ def main():
         plt.show()
     else:
         # through low contrast and some shadows
-        clip = VideoFileClip(file).subclip('00:00:13.00','00:00:27.00')
-        # tree noise on right
-        #clip = VideoFileClip(file).subclip('00:00:13.00','00:00:16.00')
-        #clip = VideoFileClip(file)
+        #clip = VideoFileClip(file).subclip('00:00:13.00','00:00:27.00')
+        # lots of shadows
+        #clip = VideoFileClip(file).subclip('00:00:40.00','00:00:42.00')
+        clip = VideoFileClip(file)
 
         proc_clip = clip.fl_image(process_vidFrame)
         if method == 'svm':
@@ -295,6 +235,8 @@ def main():
         else:
             proc_output = '{}_proc_cnn.mp4'.format(file.split('.')[0])
         proc_clip.write_videofile(proc_output, audio=False)
+    if method == 'cnn':
+        K.clear_session() #otherwise it often errors out here. Some python/keras garbage collection issue.
     
 
 if __name__ == '__main__':

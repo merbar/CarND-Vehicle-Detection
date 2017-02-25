@@ -4,6 +4,7 @@ data/
 weights/
 *.h5
 tb_log/
+rawOut/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
