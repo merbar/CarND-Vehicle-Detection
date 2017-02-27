@@ -10,19 +10,18 @@ import csv
 import time
 import pickle
 from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
 from sklearn import decomposition
 from keras import backend as K
 from keras import callbacks
-from keras.regularizers import l2, activity_l2
 import vehicleDetectUtil as vehicleUtil
 
 
 # GLOBAL
-svm = False
-cnn = True
+svm = True
+cnn = False
 # SVM
 svm_dataset_size = 0
 import vehicleDetect_svmVar as svmVar
@@ -110,18 +109,13 @@ def main():
         # Fit a per-column scaler
         print('SVM: normalizing features...')
         X_scaler = StandardScaler().fit(X)
-        #X_scaler = RobustScaler().fit(X)
         # Apply the scaler to X
         scaled_X = X_scaler.transform(X)
         
-        '''
         # singular value decomposition to reduce feature space
-        # this is not doing anything for now
-        #pca = decomposition.PCA(n_components=2500)
-        pca = decomposition.PCA()
+        pca = decomposition.PCA(n_components=3000)
         pca.fit(scaled_X)
         scaled_X = pca.transform(scaled_X)
-        '''        
 
         # Define the labels vector
         y = np.hstack((np.ones(len(car_features)), np.zeros(len(notcar_features))))
@@ -141,8 +135,7 @@ def main():
         print('SVM: Saving model...')
         joblib.dump(svc, 'svm.pkl')
         joblib.dump(X_scaler, 'svm_scaler.pkl')
-        #joblib.dump(pca, 'svm_pca.pkl')
-        #pickle.dump(X_scaler,open('svm_scaler.pkl','wb'))
+        joblib.dump(pca, 'svm_pca.pkl')
         # Check the score of the SVC
         print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
 
@@ -168,7 +161,7 @@ def main():
                                     hogFeat=svmVar.hogFeat, hog_cspace=svmVar.hog_clrspace, hog_orient=svmVar.orient, hog_pix_per_cell=svmVar.pix_per_cell, hog_cell_per_block=svmVar.cell_per_block, hog_channel=svmVar.hog_channel)
             X = np.vstack((features)).astype(np.float64)
             scaled_X = X_scaler.transform(X)
-            #scaled_X = pca.transform(scaled_X)
+            scaled_X = pca.transform(scaled_X)
             pred_bin = svc.predict(scaled_X[:])
 
             print('plotting hot windows...')
@@ -203,13 +196,6 @@ def main():
     if cnn:
         X = np.concatenate((files_vehicle, files_nonVehicle))
         y = np.concatenate((np.ones(len(files_vehicle)), np.zeros(len(files_nonVehicle))))
-        '''
-        print('CNN: loading images into memory...')
-        X_imgs = []
-        for each in X:
-            X_imgs.append(cv2.imread(each)) 
-        X_imgs = np.array(X_imgs)
-        '''
         print("CNN: building model...")
         model = vehicleUtil.cnn_model(3, img.shape[0], img.shape[1])
         print("CNN: starting training...")
@@ -221,31 +207,6 @@ def main():
         modelName = 'cnn'
         fileName = '%s' % (modelName)
         model.save('{}.h5'.format(fileName))
-        '''
-        json_string = model.to_json()
-        with open('%s.json' % fileName, "w") as json_file:
-            json_file.write(json_string)
-        model.save_weights('%s.h5' % fileName)
-        '''
-
-
-        ################ DEBUG ################
-        '''
-        car_test = []
-        nonCar_test = []
-        for each in files_test_vehicle:
-            car_test.append(cv2.imread(each)) 
-        for each in files_test_nonVehicle:
-            nonCar_test.append(cv2.imread(each)) 
-        X = np.concatenate((car_test, nonCar_test))
-        y = np.hstack((np.ones(len(files_test_vehicle)), np.zeros(len(files_test_nonVehicle))))
-        pred = model.predict(X)
-        #print(pred)
-        pred_bin = np.array([x[0] for x in pred])
-        pred_bin = np.where(pred_bin > 0.5, 1, 0)
-        print('This CNN predicts: ', pred_bin[:])
-        print('For these labels:  ', y.astype(int)[:])
-        '''
         K.clear_session() #otherwise it often errors out here. Some python/keras garbage collection issue.
 
 if __name__ == '__main__':

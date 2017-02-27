@@ -344,5 +344,19 @@ def draw_labeled_bboxes(img, labels):
         bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
         # Draw the box on the image
         cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+        cv2.rectangle(img,(bbox[0][0],bbox[0][1]-20),(bbox[0][0]+100,bbox[0][1]),(125,125,125),-1)
+        cv2.putText(img, 'car {}'.format(car_number),(bbox[0][0]+5,bbox[0][1]-2),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,0), thickness=2)
+        #cv2.putText(img, 'car {}'.format(car_number),(bbox[0][0],bbox[0][1]-7),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,0,0),1)
+    # Return the image
+    return img
+
+def draw_labeled_carBboxes(img, cars):
+    # Iterate through all detected cars
+    for car_number in range(len(cars)):
+        bbox = cars[car_number].getBbox()
+        if bbox != None:
+            cv2.rectangle(img, (bbox[0][0],bbox[0][1]), (bbox[1][0],bbox[1][1]), (0,0,255), 6)
+            #cv2.rectangle(img,(bbox[0][0],bbox[0][1]-20),(bbox[0][0]+100,bbox[0][1]),(125,125,125),-1)
+            #cv2.putText(img, 'car {}'.format(car_number+1),(bbox[0][0]+5,bbox[0][1]-2),cv2.FONT_HERSHEY_SIMPLEX,0.8,(0,0,0), thickness=2)
     # Return the image
     return img
