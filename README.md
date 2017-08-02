@@ -1,5 +1,7 @@
-# Vehicle Detection
-
+---
+layout: post
+title: Vehicle Detection
+---
 Vehicle detection from a monocular RGB video input using two different approaches - Supervised Learning (Support Vector Machine) and Deep Learning. 
 
 The Deep Learning implementation is the more successful of the two since it is considerably faster.
