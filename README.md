@@ -33,13 +33,13 @@ Settings for the Support Vector Machine input features
 
 For deep learning or support vector machine method, run one of the following:  
 ```
-python vehicleDetect.py cnn fileName   
-python vehicleDetect.py svm fileName  
+python vehicleDetect.py cnn video_fileName   
+python vehicleDetect.py svm video_fileName     
 ```
 
 For training, you have to set variables at the top of `vehicleDetect_classify.py` and run:  
 ```
-python vehicleDetect_classify.py fileName
+python vehicleDetect_classify.py video_fileName   
 ```
 
 ---
